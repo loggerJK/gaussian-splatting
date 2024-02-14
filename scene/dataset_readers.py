@@ -91,6 +91,11 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder):
             focal_length_y = intr.params[1]
             FovY = focal2fov(focal_length_y, height)
             FovX = focal2fov(focal_length_x, width)
+        elif intr.model=="OPENCV":
+            focal_length_x = intr.params[0]
+            focal_length_y = intr.params[1]
+            FovX = focal2fov(focal_length_x, width)
+            FovY = focal2fov(focal_length_y, height)
         else:
             assert False, "Colmap camera model not handled: only undistorted datasets (PINHOLE or SIMPLE_PINHOLE cameras) supported!"
 
@@ -129,7 +134,7 @@ def storePly(path, xyz, rgb):
     ply_data = PlyData([vertex_element])
     ply_data.write(path)
 
-def readColmapSceneInfo(path, images, eval, llffhold=8):
+def readColmapSceneInfo(path, images, eval, random_gaussian, llffhold=8):
     try:
         cameras_extrinsic_file = os.path.join(path, "sparse/0", "images.bin")
         cameras_intrinsic_file = os.path.join(path, "sparse/0", "cameras.bin")
@@ -157,6 +162,8 @@ def readColmapSceneInfo(path, images, eval, llffhold=8):
     ply_path = os.path.join(path, "sparse/0/points3D.ply")
     bin_path = os.path.join(path, "sparse/0/points3D.bin")
     txt_path = os.path.join(path, "sparse/0/points3D.txt")
+    random_ply_path = os.path.join(path, "sparse/0/points3D_random.ply")
+    
     if not os.path.exists(ply_path):
         print("Converting point3d.bin to .ply, will happen only the first time you open the scene.")
         try:
@@ -168,6 +175,31 @@ def readColmapSceneInfo(path, images, eval, llffhold=8):
         pcd = fetchPly(ply_path)
     except:
         pcd = None
+    
+    if random_gaussian:
+        # Since this data set has no colmap data, we start with random points
+        num_pts = 1_000_000
+        print(f"Generating random point cloud ({num_pts})...")
+        cam_pos = []
+        for k in cam_extrinsics.keys():
+            cam_pos.append(cam_extrinsics[k].tvec)
+        cam_pos = np.array(cam_pos)
+        min_cam_pos = np.min(cam_pos)
+        max_cam_pos = np.max(cam_pos)
+        mean_cam_pos = (min_cam_pos + max_cam_pos) / 2.0
+        cube_mean = (max_cam_pos - min_cam_pos) * 1.5
+
+        # We create random points inside the bounds of the synthetic Blender scenes
+        xyz = np.random.random((num_pts, 3)) * (max_cam_pos - min_cam_pos) * 3 - (cube_mean - mean_cam_pos)
+        # xyz = np.random.random((num_pts, 3)) * 10.0 - 5.0
+        shs = np.random.random((num_pts, 3))
+        pcd = BasicPointCloud(points=xyz, colors=shs, normals=np.zeros((num_pts, 3)))
+        storePly(random_ply_path, xyz, SH2RGB(shs) * 255)
+        try:
+            pcd = fetchPly(random_ply_path)
+        except:
+            pcd = None
+
 
     scene_info = SceneInfo(point_cloud=pcd,
                            train_cameras=train_cam_infos,
