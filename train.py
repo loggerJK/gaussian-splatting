@@ -106,22 +106,20 @@ def training(dataset, opt, pipe, **kwargs):
         
         # Covaraince Loss
         cov_loss = None
-        scale_x = None
-        scale_y = None
-        scale_z = None
         if kwargs['cov_loss']:
-            scale = gaussians.get_scaling
-            scale_x = torch.mean(scale[:,[0]])
-            scale_y = torch.mean(scale[:,[1]])
-            scale_z = torch.mean(scale[:,[2]])
-            cov_loss = (scale_x + scale_y + scale_z) / 3
-            
-            # cov = gaussians.get_covariance() # Scailing으로 바꾸기
-            # cov_x = cov[:,[0]] # abs(cov[:,[0]])
-            # cov_y = cov[:,[3]]
-            # cov_z = cov[:,[5]]
-            # cov_mean = torch.mean(torch.cat((cov_x, cov_y, cov_z), dim=1), dim=1) # (num_gaussians, 1)
-            # cov_loss = torch.mean(cov_mean)
+            if kwargs['cov_loss_type'] == 'scale':
+                scale = gaussians.get_scaling
+                scale_x = torch.mean(scale[:,[0]])
+                scale_y = torch.mean(scale[:,[1]])
+                scale_z = torch.mean(scale[:,[2]])
+                cov_loss = (scale_x + scale_y + scale_z) / 3
+            elif kwargs['cov_loss_type'] == 'cov':
+                cov = gaussians.get_covariance() 
+                cov_x = cov[:,[0]] 
+                cov_y = cov[:,[3]]
+                cov_z = cov[:,[5]]
+                cov_mean = torch.mean(torch.cat((cov_x, cov_y, cov_z), dim=1), dim=1) # (num_gaussians, 1)
+                cov_loss = torch.mean(cov_mean)
             
             if kwargs['cov_loss'] == 'high':
                 loss += kwargs['cov_weight'] * (1 / (cov_loss + 1e-7))
@@ -145,7 +143,7 @@ def training(dataset, opt, pipe, **kwargs):
             if (iteration in saving_iterations):
                 print("\n[ITER {}] Saving Gaussians".format(iteration))
                 scene.save(iteration)
-            training_report(tb_writer, iteration, Ll1, loss, l1_loss, iter_start.elapsed_time(iter_end), testing_iterations, scene, render, (pipe, background), cov_loss, kwargs['deblur'], scale_x, scale_y, scale_z)
+            training_report(tb_writer, iteration, Ll1, loss, l1_loss, iter_start.elapsed_time(iter_end), testing_iterations, scene, render, (pipe, background), cov_loss, kwargs['deblur'])
 
             # Densification
             if iteration < opt.densify_until_iter and kwargs['no_densify'] == False:
@@ -225,16 +223,19 @@ def prepare_output_and_logger(args, **kwargs):
     return tb_writer
 
 
-def training_report(tb_writer, iteration, Ll1, loss, l1_loss, elapsed, testing_iterations, scene : Scene, renderFunc, renderArgs, cov_loss, deblur, scale_x, scale_y, scale_z):
+def training_report(tb_writer, iteration, Ll1, loss, l1_loss, elapsed, testing_iterations, scene : Scene, renderFunc, renderArgs, cov_loss, deblur):
     if tb_writer:
         tb_writer.add_scalar('train_loss_patches/l1_loss', Ll1.item(), iteration)
         tb_writer.add_scalar('train_loss_patches/total_loss', loss.item(), iteration)
         if cov_loss and (iteration % 500 == 0):
-        # if False:
             rot = scene.gaussians.get_rotation
             rot_x = torch.mean(rot[:,[0]])
             rot_y = torch.mean(rot[:,[1]])
             rot_z = torch.mean(rot[:,[2]])
+            scale = scene.gaussians.get_scaling
+            scale_x = torch.mean(scale[:,[0]])
+            scale_y = torch.mean(scale[:,[1]])
+            scale_z = torch.mean(scale[:,[2]])
             
             tb_writer.add_scalar('train_loss_patches/cov_loss', cov_loss.item(), iteration)
             tb_writer.add_scalar('train_loss_patches/rot_x', rot_x.item(), iteration)
@@ -359,6 +360,7 @@ if __name__ == "__main__":
 
         # Covariance Loss Arguments
         parser.add_argument("--cov_loss", type=str, default=None, help="Set 'high' if you want to maximize the covariance loss, 'low' if you want to minimize the covariance loss")
+        parser.add_argument("--cov_loss_type", type=str, default='scale', help = "one of 'scale', 'rot', 'cov'")
         parser.add_argument("--cov_weight", type=float, default=10.0, help="Weight for covariance loss")
         
         # Deblurring Arguments
