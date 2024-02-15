@@ -82,7 +82,7 @@ def training(dataset, opt, pipe, **kwargs):
         gaussians.update_learning_rate(iteration)
 
         # Every 1000 its we increase the levels of SH up to a maximum degree
-        if iteration % 1000 == 0:
+        if iteration % 1000 == 0 and not kwargs['no_sh']:
             gaussians.oneupSHdegree()
             
         # Pick a random Camera
@@ -178,7 +178,7 @@ def training(dataset, opt, pipe, **kwargs):
         if iteration % kwargs['deblur_every_iter'] == 0 and kwargs['blur'] and kwargs['deblur'] :
             
             # Decrease blur filter size by 10
-            kwargs['filter_size'] = kwargs['filter_size'] - 10
+            kwargs['filter_size'] = kwargs['filter_size'] - kwargs['deblur_step']
             
             # Turn off blur if filter size is less than 3
             if kwargs['filter_size'] < 3:
@@ -365,12 +365,16 @@ if __name__ == "__main__":
         
         # Deblurring Arguments
         parser.add_argument("--deblur", action="store_true", default = False, help="Enable Coarse to Fine deblurring")
+        parser.add_argument("--deblur_step", type = int, default=10, help="Number of deblurring steps")
         parser.add_argument("--deblur_every_iter", type=int, default=7000, help="Deblur every n iterations")
         
         # Blur Arguments
         parser.add_argument("--blur", action="store_true", default = False, help="Enable Gaussian blur")
         parser.add_argument("--gaussian_blur", action="store_true", default = False, help="Enable Gaussian blur")
         parser.add_argument("--filter_size", type=int, default=31, help="Filter size for blur")
+        
+        # Spherical Harmonics Arguments
+        parser.add_argument("--no_sh", action="store_true", default = False, help="Disable Spherical Harmonics")
         
 
         args = parser.parse_args(sys.argv[1:])
