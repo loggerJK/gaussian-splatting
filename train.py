@@ -175,7 +175,7 @@ def training(dataset, opt, pipe, **kwargs):
                 torch.save((gaussians.capture(), iteration), scene.model_path + "/chkpnt" + str(iteration) + ".pth")
 
         # Every 7000, deblur image
-        if iteration % kwargs['deblur_every_iter'] == 0 and kwargs['blur'] and kwargs['deblur'] :
+        if iteration % kwargs['deblur_every_iter'] == 0 and kwargs['deblur'] :
             
             # Decrease blur filter size by 10
             kwargs['filter_size'] = kwargs['filter_size'] - kwargs['deblur_step']
